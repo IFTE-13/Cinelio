@@ -1,8 +1,8 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { ThemeProvider } from "@/components/theme-provider"
 
 const poppins = Poppins({ 
   subsets: ['latin'],
@@ -24,8 +24,18 @@ export default function RootLayout({
     <html
       lang="en"
       className={cn("h-full", "antialiased", poppins.variable, "font-sans")}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+      </body>
     </html>
   );
 }
