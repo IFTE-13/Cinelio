@@ -1,33 +1,79 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Movie } from '@/types/movie';
 
-export function useWatchlist() {
-  const [watchlist, setWatchlist] = useState<Movie[]>([]);
+const STORAGE_KEY = 'flixo_watchlist';
+
+interface UseWatchlistReturn {
+  watchlist: Movie[];
+  addToWatchlist: (movie: Movie) => void;
+  removeFromWatchlist: (movieId: number) => void;
+  toggleWatchlist: (movie: Movie) => void;
+  isInWatchlist: (movieId: number) => boolean;
+  clearWatchlist: () => void;
+  watchlistCount: number;
+}
+
+export function useWatchlist(): UseWatchlistReturn {
+  const [watchlist, setWatchlist] = useState<Movie[]>(() => {
+    if (typeof window === 'undefined') return [];
+    
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (error) {
+      console.error('Failed to parse watchlist from localStorage:', error);
+      return [];
+    }
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem('flixo_watchlist');
-    if (saved) {
-      setWatchlist(JSON.parse(saved));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(watchlist));
+    } catch (error) {
+      console.error('Failed to save watchlist to localStorage:', error);
     }
+  }, [watchlist]);
+
+  const addToWatchlist = useCallback((movie: Movie) => {
+    setWatchlist(prev => {
+      if (prev.some(m => m.id === movie.id)) return prev;
+      return [...prev, movie];
+    });
   }, []);
 
-  const addToWatchlist = (movie: Movie) => {
-    const updated = [...watchlist, movie];
-    setWatchlist(updated);
-    localStorage.setItem('flixo_watchlist', JSON.stringify(updated));
-  };
+  const removeFromWatchlist = useCallback((movieId: number) => {
+    setWatchlist(prev => prev.filter(movie => movie.id !== movieId));
+  }, []);
 
-  const removeFromWatchlist = (movieId: number) => {
-    const updated = watchlist.filter(m => m.id !== movieId);
-    setWatchlist(updated);
-    localStorage.setItem('flixo_watchlist', JSON.stringify(updated));
-  };
+  const toggleWatchlist = useCallback((movie: Movie) => {
+    setWatchlist(prev => {
+      const exists = prev.some(m => m.id === movie.id);
+      if (exists) {
+        return prev.filter(m => m.id !== movie.id);
+      }
+      return [...prev, movie];
+    });
+  }, []);
 
-  const isInWatchlist = (movieId: number) => {
-    return watchlist.some(m => m.id === movieId);
-  };
+  const isInWatchlist = useCallback((movieId: number) => {
+    return watchlist.some(movie => movie.id === movieId);
+  }, [watchlist]);
 
-  return { watchlist, addToWatchlist, removeFromWatchlist, isInWatchlist };
+  const clearWatchlist = useCallback(() => {
+    setWatchlist([]);
+  }, []);
+
+  const watchlistCount = useMemo(() => watchlist.length, [watchlist]);
+
+  return {
+    watchlist,
+    addToWatchlist,
+    removeFromWatchlist,
+    toggleWatchlist,
+    isInWatchlist,
+    clearWatchlist,
+    watchlistCount,
+  };
 }

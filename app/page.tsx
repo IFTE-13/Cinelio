@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MovieCard } from '@/components/movieCard';
 import { SearchBar } from '@/components/searchBar';
 import { Button } from '@/components/ui/button';
-import { Bookmark, TrendingUp, Film, Sparkles } from 'lucide-react';
+import { Bookmark, TrendingUp, Film } from 'lucide-react';
 import { Movie, MovieResponse } from '@/types/movie';
 import Link from 'next/link';
-import { ThemeToggle } from '@/components/themeToggle';
+import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
 
 const categories = [
   { id: 'popular', name: 'Popular', icon: '🔥' },
@@ -25,15 +25,17 @@ export default function Home() {
   const [totalPages, setTotalPages] = useState(0);
   const [activeCategory, setActiveCategory] = useState('popular');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const initialLoadRef = useRef(false);
 
-  useEffect(() => {
-    loadMovies();
-  }, [activeCategory]);
-
-  const loadMovies = async (page = 1, category = activeCategory) => {
+  const loadMovies = useCallback(async (page = 1, category = activeCategory, isSearching = false) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/movies?category=${category}&page=${page}`);
+      const url = isSearching
+        ? `/api/movies?query=${encodeURIComponent(searchQuery)}&page=${page}`
+        : `/api/movies?category=${category}&page=${page}`;
+      
+      const response = await fetch(url);
       const data: MovieResponse = await response.json();
       
       if (page === 1) {
@@ -48,7 +50,16 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeCategory, searchQuery]);
+
+  // Initial load and category changes
+  useEffect(() => {
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadMovies(1, activeCategory, false);
+  }, [activeCategory, loadMovies]);
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -71,14 +82,12 @@ export default function Home() {
     setSearching(false);
     setSearchQuery('');
     setActiveCategory('popular');
-    loadMovies(1, 'popular');
   };
 
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);
     setSearching(false);
     setSearchQuery('');
-    loadMovies(1, category);
   };
 
   const loadMore = () => {
@@ -91,7 +100,7 @@ export default function Home() {
             setCurrentPage(prev => prev + 1);
           });
       } else {
-        loadMovies(currentPage + 1, activeCategory);
+        loadMovies(currentPage + 1, activeCategory, false);
       }
     }
   };
@@ -99,7 +108,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
@@ -114,14 +123,14 @@ export default function Home() {
                   <span className="hidden sm:inline">Watchlist</span>
                 </Button>
               </Link>
-              <ThemeToggle />
+              <AnimatedThemeToggler />
             </div>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-background py-12">
+      <section className="relative overflow-hidden bg-linear-to-br from-primary/5 via-background to-background py-12">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
@@ -164,7 +173,7 @@ export default function Home() {
             <div>
               <h2 className="text-2xl font-bold">Search Results</h2>
               <p className="text-sm text-muted-foreground">
-                Found {movies.length} movies for "{searchQuery}"
+                Found {movies.length} movies for &quot;{searchQuery}&quot;
               </p>
             </div>
             <Button onClick={clearSearch} variant="outline" size="sm">
@@ -178,7 +187,7 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {[...Array(12)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="aspect-[2/3] rounded-xl bg-muted" />
+                <div className="aspect-2/3 rounded-xl bg-muted" />
                 <div className="mt-2 h-4 w-3/4 rounded bg-muted" />
               </div>
             ))}

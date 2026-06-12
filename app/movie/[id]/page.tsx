@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BookmarkPlus, BookmarkCheck, Clock, Star, Calendar, Users, Award } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, BookmarkCheck, Clock, Calendar, Users, Award } from 'lucide-react';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { MovieDetails } from '@/types/movie';
 
