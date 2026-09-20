@@ -1,32 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-const BASE_URL = process.env.NEXT_PUBLIC_TMDB_BASE_URL;
+import {
+  getPopularMovies,
+  getTopRatedMovies,
+  getNowPlayingMovies,
+  getUpcomingMovies,
+  getTrendingMovies,
+} from '@/lib/tmdb/client';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const category = searchParams.get('category') || 'popular';
-  const page = searchParams.get('page') || '1';
-  const query = searchParams.get('query');
+  const page = parseInt(searchParams.get('page') || '1', 10);
 
   try {
-    let endpoint = '';
-    if (query) {
-      endpoint = `/search/movie?api_key=${API_KEY}&language=en-US&query=${encodeURIComponent(query)}&page=${page}`;
-    } else {
-      endpoint = `/movie/${category}?api_key=${API_KEY}&language=en-US&page=${page}`;
+    let data;
+    switch (category) {
+      case 'trending':
+        data = await getTrendingMovies('day', page);
+        break;
+      case 'top_rated':
+        data = await getTopRatedMovies(page);
+        break;
+      case 'now_playing':
+        data = await getNowPlayingMovies(page);
+        break;
+      case 'upcoming':
+        data = await getUpcomingMovies(page);
+        break;
+      case 'popular':
+      default:
+        data = await getPopularMovies(page);
+        break;
     }
 
-    const response = await fetch(`${BASE_URL}${endpoint}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch movies');
-    }
-
-    const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching movies:', error);
+    console.error('API /api/movies error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch movies' },
       { status: 500 }
