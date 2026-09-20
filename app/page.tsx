@@ -1,237 +1,171 @@
-'use client';
-
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { MovieCard } from '@/components/movieCard';
-import { SearchBar } from '@/components/searchBar';
-import { Button } from '@/components/ui/button';
-import { Bookmark, TrendingUp, Film } from 'lucide-react';
-import { Movie, MovieResponse } from '@/types/movie';
+import React from 'react';
+import { Metadata } from 'next';
 import Link from 'next/link';
-import { AnimatedThemeToggler } from '@/components/ui/animated-theme-toggler';
+import {
+  getTrendingMovies,
+  getPopularMovies,
+  getTopRatedMovies,
+  getNowPlayingMovies,
+  getUpcomingMovies,
+  getGenres,
+  isTmdbConfigured,
+} from '@/lib/tmdb/client';
+import { Container } from '@/components/layout/container';
+import { FeaturedHero } from '@/components/movie/featured-hero';
+import { MovieRow } from '@/components/movie/movie-row';
+import { GenreBrowseSection } from '@/components/movie/genre-browse-section';
+import { RecentlyViewedRow } from '@/components/movie/recently-viewed-row';
+import { Info, Sparkles, Compass, Flame, History } from 'lucide-react';
 
-const categories = [
-  { id: 'popular', name: 'Popular', icon: '🔥' },
-  { id: 'now_playing', name: 'Now Playing', icon: '📽️' },
-  { id: 'top_rated', name: 'Top Rated', icon: '⭐' },
-  { id: 'upcoming', name: 'Upcoming', icon: '🗓️' },
-];
+export const metadata: Metadata = {
+  title: 'Cinelio — Explore cinema',
+  description: 'A thoughtful, vibrant cinema discovery database. Explore trending, acclaimed, and upcoming movies.',
+};
 
-export default function Home() {
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searching, setSearching] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [activeCategory, setActiveCategory] = useState('popular');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const initialLoadRef = useRef(false);
+export const revalidate = 3600; // Revalidate page every hour
 
-  const loadMovies = useCallback(async (page = 1, category = activeCategory, isSearching = false) => {
-    setLoading(true);
-    try {
-      const url = isSearching
-        ? `/api/movies?query=${encodeURIComponent(searchQuery)}&page=${page}`
-        : `/api/movies?category=${category}&page=${page}`;
-      
-      const response = await fetch(url);
-      const data: MovieResponse = await response.json();
-      
-      if (page === 1) {
-        setMovies(data.results);
-      } else {
-        setMovies(prev => [...prev, ...data.results]);
-      }
-      setTotalPages(data.total_pages);
-      setCurrentPage(page);
-    } catch (error) {
-      console.error('Error loading movies:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeCategory, searchQuery]);
+export default async function HomePage() {
+  const [trending, popular, topRated, nowPlaying, upcoming, genres] = await Promise.all([
+    getTrendingMovies('day', 1),
+    getPopularMovies(1),
+    getTopRatedMovies(1),
+    getNowPlayingMovies(1),
+    getUpcomingMovies(1),
+    getGenres(),
+  ]);
 
-  // Initial load and category changes
-  useEffect(() => {
-    if (!initialLoadRef.current) {
-      initialLoadRef.current = true;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadMovies(1, activeCategory, false);
-  }, [activeCategory, loadMovies]);
-
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    setSearching(true);
-    setSearchLoading(true);
-    try {
-      const response = await fetch(`/api/movies?query=${encodeURIComponent(query)}&page=1`);
-      const data: MovieResponse = await response.json();
-      setMovies(data.results);
-      setTotalPages(data.total_pages);
-      setCurrentPage(1);
-    } catch (error) {
-      console.error('Error searching movies:', error);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
-  const clearSearch = () => {
-    setSearching(false);
-    setSearchQuery('');
-    setActiveCategory('popular');
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setActiveCategory(category);
-    setSearching(false);
-    setSearchQuery('');
-  };
-
-  const loadMore = () => {
-    if (currentPage < totalPages) {
-      if (searching) {
-        fetch(`/api/movies?query=${encodeURIComponent(searchQuery)}&page=${currentPage + 1}`)
-          .then(res => res.json())
-          .then(data => {
-            setMovies(prev => [...prev, ...data.results]);
-            setCurrentPage(prev => prev + 1);
-          });
-      } else {
-        loadMovies(currentPage + 1, activeCategory, false);
-      }
-    }
-  };
+  const hasApiKey = isTmdbConfigured();
+  // Select top 5 for the interactive spotlight carousel
+  const spotlightMovies = trending.results.slice(0, 5).length > 0
+    ? trending.results.slice(0, 5)
+    : popular.results.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-        <div className="container mx-auto px-4">
-          <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold text-gradient">Flixo</span>
+    <div className="pb-16">
+      {/* 1. Full-Screen Edge-to-Edge Spotlight Hero without outer margins/paddings */}
+      <FeaturedHero
+        movies={spotlightMovies}
+        allGenres={genres}
+      />
+
+      <Container>
+        {/* Subtle API Key Setup notice if running in demo mode */}
+        {!hasApiKey && (
+          <div className="mt-6 mb-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                Exploring in <strong>Curated Cinema Mode</strong>. Add your{' '}
+                <code className="rounded bg-amber-500/20 px-1 py-0.5 font-mono text-[11px]">
+                  TMDB_API_KEY
+                </code>{' '}
+                to <code className="font-mono text-[11px]">.env.local</code> to query the live TMDB database.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Cinema Pulse & Quick Discovery Strip */}
+        <div className="my-8 p-3 sm:p-4 rounded-xl border border-border/70 bg-card/60 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+            </span>
+            <span className="font-semibold text-foreground">Archive Pulse:</span>
+            <span className="text-muted-foreground">
+              {trending.total_results.toLocaleString()} films indexed • High-fidelity metadata & trailers
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link
+              href="/discover"
+              className="font-medium text-foreground hover:text-[var(--theme-accent)] transition-colors inline-flex items-center gap-1"
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Catalog</span>
             </Link>
-            
-            <div className="flex items-center gap-3">
-              <Link href="/watchlist">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Bookmark className="h-4 w-4" />
-                  <span className="hidden sm:inline">Watchlist</span>
-                </Button>
-              </Link>
-              <AnimatedThemeToggler />
-            </div>
+            <span className="text-muted-foreground">•</span>
+            <Link
+              href="/moods"
+              className="font-medium text-foreground hover:text-[var(--theme-accent)] transition-colors inline-flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Moods</span>
+            </Link>
+            <span className="text-muted-foreground">•</span>
+            <Link
+              href="/eras"
+              className="font-medium text-foreground hover:text-[var(--theme-accent)] transition-colors inline-flex items-center gap-1"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Eras</span>
+            </Link>
+            <span className="text-muted-foreground">•</span>
+            <Link
+              href="/directors"
+              className="font-medium text-foreground hover:text-[var(--theme-accent)] transition-colors inline-flex items-center gap-1"
+            >
+              <Flame className="w-3.5 h-3.5" />
+              <span>Auteurs</span>
+            </Link>
+            <span className="text-muted-foreground">•</span>
+            <Link
+              href="/genres"
+              className="font-medium text-foreground hover:text-[var(--theme-accent)] transition-colors"
+            >
+              19 Genres →
+            </Link>
           </div>
         </div>
-      </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-linear-to-br from-primary/5 via-background to-background py-12">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-3xl text-center">
-            <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
-              Discover <span className="text-gradient">Amazing</span> Movies
-            </h1>
-            <p className="mb-8 text-lg text-muted-foreground">
-              Explore thousands of movies, save your favorites, and never miss a great film
-            </p>
-            <div className="mx-auto max-w-md">
-              <SearchBar onSearch={handleSearch} isLoading={searchLoading} />
-            </div>
-          </div>
-        </div>
-      </section>
+        {/* 3. Trending Movies */}
+        <MovieRow
+          title="Trending Today"
+          subtitle="Films capturing audiences across the globe right now"
+          movies={trending.results}
+          viewAllHref="/movies?category=trending"
+        />
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Category Tabs */}
-        {!searching && (
-          <div className="mb-8 flex flex-wrap gap-2 border-b">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => handleCategoryChange(category.id)}
-                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
-                  activeCategory === category.id
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span>{category.icon}</span>
-                <span>{category.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* 4. Popular Releases */}
+        <MovieRow
+          title="Popular Releases"
+          subtitle="Widely watched and discussed contemporary films"
+          movies={popular.results}
+          viewAllHref="/movies?category=popular"
+        />
 
-        {/* Search Results Header */}
-        {searching && (
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Search Results</h2>
-              <p className="text-sm text-muted-foreground">
-                Found {movies.length} movies for &quot;{searchQuery}&quot;
-              </p>
-            </div>
-            <Button onClick={clearSearch} variant="outline" size="sm">
-              Clear Search
-            </Button>
-          </div>
-        )}
+        {/* 5. Top Rated Movies */}
+        <MovieRow
+          title="All-Time Classics & Top Rated"
+          subtitle="The highest-rated cinematic achievements in film history"
+          movies={topRated.results}
+          viewAllHref="/movies?category=top_rated"
+        />
 
-        {/* Movies Grid */}
-        {loading && movies.length === 0 ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-2/3 rounded-xl bg-muted" />
-                <div className="mt-2 h-4 w-3/4 rounded bg-muted" />
-              </div>
-            ))}
-          </div>
-        ) : movies.length === 0 && !loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <Film className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="mb-2 text-lg font-semibold">No movies found</h3>
-            <p className="text-muted-foreground">
-              Try searching for something else
-            </p>
-            {searching && (
-              <Button onClick={clearSearch} variant="outline" className="mt-4">
-                Browse Categories
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {movies.map((movie) => (
-                <Link href={`/movie/${movie.id}`} key={movie.id}>
-                  <MovieCard movie={movie} />
-                </Link>
-              ))}
-            </div>
+        {/* 6. Now Playing in Theaters */}
+        <MovieRow
+          title="Now in Theaters"
+          subtitle="Current theatrical engagements and fresh cinema releases"
+          movies={nowPlaying.results}
+          viewAllHref="/movies?category=now_playing"
+        />
 
-            {currentPage < totalPages && movies.length > 0 && (
-              <div className="mt-12 flex justify-center">
-                <Button onClick={loadMore} variant="outline" size="lg" className="px-8">
-                  Load More
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </main>
+        {/* 7. Upcoming Films */}
+        <MovieRow
+          title="Anticipated & Upcoming"
+          subtitle="Highly anticipated cinematic works arriving soon"
+          movies={upcoming.results}
+          viewAllHref="/movies?category=upcoming"
+        />
 
-      {/* Footer */}
-      <footer className="mt-16 border-t py-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>© 2024 Flixo. All data provided by TMDB</p>
-        </div>
-      </footer>
+        {/* 8. Browse by Genre */}
+        <GenreBrowseSection genres={genres} />
+
+        {/* 9. Recently Viewed (Client Hydrated) */}
+        <RecentlyViewedRow />
+      </Container>
     </div>
   );
 }
